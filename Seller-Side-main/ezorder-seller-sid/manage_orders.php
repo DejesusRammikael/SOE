@@ -77,6 +77,28 @@ if (isset($_GET['reject']) && is_numeric($_GET['reject'])) {
     }
     exit();
 }
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id'], $_POST['next_status'])) {
+    $order_id = intval($_POST['order_id']);
+    $next_status = $_POST['next_status'];
+    $allowed = ['pending', 'preparing', 'ready'];
+    if (in_array($next_status, $allowed)) {
+        $stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
+        $stmt->bind_param("si", $next_status, $order_id);
+        $stmt->execute();
+        $stmt->close();
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
+    }
+}
+
+function getNextStatus($current) {
+    switch ($current) {
+        case 'pending': return 'preparing';
+        case 'preparing': return 'ready';
+        default: return null;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -143,32 +165,28 @@ if (isset($_GET['reject']) && is_numeric($_GET['reject'])) {
             
             // Get status filter if set
             $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
-            
-            $sql = "SELECT id, order_name, item_quantity, stall_name, price, ordered_by, 
-                           order_time, order_date, status, payment_status 
-                    FROM `order`
+
+            $sql = "SELECT o.id, o.customer_name, o.total_amount, o.created_at, o.status
+                    FROM orders o
                     WHERE 1=1";
-                    
+            $params = [];
+            $types = "";
+
             if ($status_filter !== 'all') {
-                $sql .= " AND status = ?";
-                $stmt = $conn->prepare($sql);
-                if ($stmt) {
-                    $stmt->bind_param("s", $status_filter);
-                } else {
-                    echo "<div class='alert alert-error'>Error preparing statement: " . $conn->error . "</div>";
-                    exit();
-                }
-            } else {
-                $stmt = $conn->prepare($sql);
-                if (!$stmt) {
-                    echo "<div class='alert alert-error'>Error preparing statement: " . $conn->error . "</div>";
-                    exit();
-                }
+                $sql .= " AND o.status = ?";
+                $params[] = $status_filter;
+                $types .= "s";
             }
-            
+
+            $sql .= " ORDER BY o.created_at DESC";
+
+            $stmt = $conn->prepare($sql);
+            if ($params) {
+                $stmt->bind_param($types, ...$params);
+            }
             if ($stmt->execute()) {
-                $result = $stmt->get_result();
-                if ($result->num_rows === 0) {
+                $orders_result = $stmt->get_result();
+                if ($orders_result->num_rows === 0) {
                     echo "<div class='no-orders'>No orders found.</div>";
                 }
             } else {
@@ -176,66 +194,84 @@ if (isset($_GET['reject']) && is_numeric($_GET['reject'])) {
                 exit();
             }
 
-            while ($row = $result->fetch_assoc()) {
-                $order_id = "A" . $row['id'];
-                $time = $row['order_time'];
-                    $total = number_format($row['price'] * $row['item_quantity'], 2);
-                
-                // Prepare order data for modal
-                $orderData = array(
-                    'time' => $row['order_time'],
-                    'date' => $row['order_date'],
-                    'itemName' => $row['order_name'],
-                    'price' => number_format($row['price'], 2),
-                    'quantity' => $row['item_quantity'],
-                    'orderNumber' => date('Y-') . $row['id'],
-                    'customerName' => $row['ordered_by'],
-                        'totalPayment' => $total
-                );
-                $orderDataJson = htmlspecialchars(json_encode($orderData), ENT_QUOTES, 'UTF-8');
-                
-                echo "<div class='order-card' id='order-card-" . $row['id'] . "'>";
-                    echo "<div class='order-header'>";
-                echo "<div class='order-id'>{$order_id}</div>";
-                    echo "<div class='order-time'><i class='far fa-clock'></i> {$time}</div>";
-                    echo "</div>";
-                    
+            while ($order = $orders_result->fetch_assoc()) {
+                $order_id = $order['id'];
+                $order_number = "A" . $order_id;
+                $customer_name = htmlspecialchars($order['customer_name']);
+                $total_amount = number_format($order['total_amount'], 2);
+                $created_at = date('Y-m-d H:i', strtotime($order['created_at']));
+                $status = $order['status'];
+
+                // Fetch order items for this order
+                $items_stmt = $conn->prepare("SELECT item_name_at_order, quantity, price_at_order FROM order_items WHERE order_id = ?");
+                $items_stmt->bind_param("i", $order_id);
+                $items_stmt->execute();
+                $items_result = $items_stmt->get_result();
+
+                echo "<div class='order-card' id='order-card-{$order_id}'>";
+                echo "<div class='order-header'>";
+                echo "<div class='order-id'>{$order_number}</div>";
+                echo "<div class='order-time'><i class='far fa-clock'></i> {$created_at}</div>";
+                echo "</div>";
+
                 echo "<div class='order-details'>";
-                    echo "<div class='customer-info'>";
-                    echo "<i class='fas fa-user'></i>";
-                    echo "<span class='customer-name'>" . htmlspecialchars($row['ordered_by']) . "</span>";
-                    echo "</div>";
-                    
-                    echo "<div class='order-items'>";
-                    echo "<div class='item-name'>" . htmlspecialchars($row['order_name']) . "</div>";
+                echo "<div class='customer-info'>";
+                echo "<i class='fas fa-user'></i>";
+                echo "<span class='customer-name'>{$customer_name}</span>";
+                echo "</div>";
+
+                echo "<div class='order-items'>";
+                while ($item = $items_result->fetch_assoc()) {
+                    $item_name = htmlspecialchars($item['item_name_at_order']);
+                    $quantity = (int)$item['quantity'];
+                    $price = number_format($item['price_at_order'], 2);
+                    $subtotal = number_format($item['price_at_order'] * $quantity, 2);
+
+                    echo "<div class='item-name'>{$item_name}</div>";
                     echo "<div class='item-meta'>";
-                echo "<span class='quantity'>×" . htmlspecialchars($row['item_quantity']) . "</span>";
-                    echo "<span class='price'>₱" . $total . "</span>";
+                    echo "<span class='quantity'>×{$quantity}</span>";
+                    echo "<span class='price'>₱{$subtotal}</span>";
                     echo "</div>";
+                }
+                echo "</div>"; // .order-items
+                echo "</div>"; // .order-details
+
+                echo "<div class='order-actions'>";
+                echo "<span class='status-badge'>";
+switch ($status) {
+    case 'pending':
+        echo "Pending";
+        break;
+    case 'preparing':
+        echo "Preparing";
+        break;
+    case 'ready':
+        echo "Ready to Pick Up";
+        break;
+    case 'completed':
+        echo "Completed";
+        break;
+    case 'cancelled':
+        echo "Cancelled";
+        break;
+    default:
+        echo htmlspecialchars($status);
+}
+echo "</span>";
+
+                $nextStatus = getNextStatus($status);
+                if ($nextStatus) {
+                    echo "<form method='post' style='display:inline;'>
+                            <input type='hidden' name='order_id' value='{$order_id}'>
+                            <input type='hidden' name='next_status' value='{$nextStatus}'>
+                            <button type='submit' class='action-btn'>{$nextStatus}</button>
+                          </form>";
+                }
                 echo "</div>";
-                echo "</div>";
-                    
-                    echo "<div class='order-actions'>";
-                    if ($row['status'] === 'pending') {
-                        echo "<button onclick='updateStatus(" . $row['id'] . ", \"accept\")' class='action-btn accept'>";
-                        echo "<i class='fas fa-check'></i> Accept";
-                        echo "</button>";
-                        echo "<button onclick='updateStatus(" . $row['id'] . ", \"reject\")' class='action-btn reject'>";
-                        echo "<i class='fas fa-times'></i> Reject";
-                        echo "</button>";
-                    } elseif ($row['status'] === 'preparing') {
-                        echo "<button onclick='updateStatus(" . $row['id'] . ", \"ready\")' class='action-btn ready'>";
-                        echo "<i class='fas fa-check-double'></i> Mark as Ready";
-                        echo "</button>";
-                    } elseif ($row['status'] === 'ready') {
-                        echo "<button onclick='updateStatus(" . $row['id'] . ", \"complete\")' class='action-btn complete'>";
-                        echo "<i class='fas fa-check-circle'></i> Mark as Completed";
-                        echo "</button>";
-                    } else {
-                        echo "<span class='status-badge'>" . ucfirst($row['status']) . "</span>";
-                    }
-                    echo "</div>";
-                echo "</div>";
+
+                echo "</div>"; // .order-card
+
+                $items_stmt->close();
             }
 
             $stmt->close();

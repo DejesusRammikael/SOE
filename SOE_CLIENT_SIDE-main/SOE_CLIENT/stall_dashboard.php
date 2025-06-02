@@ -53,7 +53,7 @@ $regular_result = $stmt->get_result();
 <!DOCTYPE html>
 <html>
 <head>
-    <title><?= htmlspecialchars($stall['name']) ?> - Stall Menu</title>
+    <title><?= htmlspecialchars($stall['stall_name']) ?> - Stall Menu</title>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="css/view_cart.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -1343,7 +1343,7 @@ $regular_result = $stmt->get_result();
         $stall_result = $conn->query($stall_query);
         while($stall_item = $stall_result->fetch_assoc()): ?>
             <a href="stall_dashboard.php?stall_id=<?= $stall_item['stall_id'] ?>">
-                <i class="fas fa-store"></i> <?= htmlspecialchars($stall_item['name']) ?>
+                <i class="fas fa-store"></i> <?= htmlspecialchars($stall_item['stall_name']) ?>
             </a>
         <?php endwhile; ?>
     </div>

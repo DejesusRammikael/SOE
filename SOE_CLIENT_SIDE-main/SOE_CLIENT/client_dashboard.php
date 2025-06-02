@@ -905,8 +905,18 @@ body {
         $featured_count = 1;
         while($item = $featured_result->fetch_assoc()): 
             $featured_count++;
+            $imageFile = basename($item['product_path']);
+            $clientPath = "assets/images/" . $imageFile;
+            $sellerPath = "ezorder-seller-side/" . $item['product_path'];
+            $placeholder = "assets/images/no-image.png";
         ?>
-            <div class="featured-card" style="background-image: url('ezorder-seller-side/uploads/products<?= htmlspecialchars($item['product_path']) ?>')" data-index="<?= $featured_count - 1 ?>">
+            <div class="featured-card" data-index="<?= $featured_count - 1 ?>">
+                <img 
+                    src="<?= $clientPath ?>" 
+                    alt="<?= htmlspecialchars($item['product_name']) ?>" 
+                    onerror="this.onerror=null;this.src='<?= $sellerPath ?>';this.onerror=function(){this.src='<?= $placeholder ?>';};"
+                    style="width:100%;height:250px;object-fit:cover;border-radius:10px;margin-bottom:20px;"
+                />
                 <div class="featured-content">
                     <h3><?= htmlspecialchars($item['product_name']) ?></h3>
                     <p><?= htmlspecialchars($item['description']) ?> - <span class="category"><?= htmlspecialchars($item['category']) ?></span></p>
@@ -953,11 +963,17 @@ body {
         <?php while($item = $regular_result->fetch_assoc()): ?>
                     <div class="card" data-id="<?= $item['product_id'] ?>" data-category="<?= htmlspecialchars($item['category']) ?>">
                 <?php
-$imgPath = (strpos($item['product_path'], '/') === false)
-    ? "ezorder-seller-side/uploads/products/" . $item['product_path']
-    : "ezorder-seller-side/" . ltrim($item['product_path'], '/');
+$imageFile = basename($item['product_path']);
+$clientPath = "assets/images/" . $imageFile;
+$sellerPath = "ezorder-seller-side/" . $item['product_path'];
+$placeholder = "assets/images/no-image.png";
 ?>
-<img src="ezorder-seller-side/uploads/products/<?= htmlspecialchars($item['product_path']) ?>" alt="<?= htmlspecialchars($item['product_name']) ?>">
+<img 
+    src="<?= $clientPath ?>" 
+    alt="<?= htmlspecialchars($item['product_name']) ?>" 
+    onerror="this.onerror=null;this.src='<?= $sellerPath ?>';this.onerror=function(){this.src='<?= $placeholder ?>';};"
+    class="product-image"
+/>
                         <div class="card-content">
                 <h3><?= htmlspecialchars($item['product_name']) ?></h3>
                 <p><?= isset($item['description']) ? htmlspecialchars($item['description']) : 'No description' ?> - <span class="category-tag"><?= htmlspecialchars($item['category']) ?></span></p>
@@ -1178,10 +1194,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateAddToCartBtn(id) {
         const qty = parseInt(document.getElementById(`qty-${id}`).textContent, 10);
-        const btn = document.querySelector(`.add-to-cart-btn[data-id="${id}"]`);
-        if (btn) {
-            btn.disabled = qty < 1;
-        }
+        // Update ALL buttons with this data-id
+        document.querySelectorAll(`.add-to-cart-btn[data-id="${id}"]`).forEach(btn => {
+            btn.disabled = qty <= 0;
+        });
     }
 
         function showConfirmModal(menuItemId, itemName) {
@@ -1202,7 +1218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function confirmRemove() {
             if (itemToRemove) {
                 removeItemFromCart(itemToRemove);
-                closeConfirmModal();
+                closeConfirmModal();    
             }
         }
 
@@ -1421,21 +1437,23 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.increment-btn').forEach(button => {
         button.addEventListener('click', () => {
             const id = button.getAttribute('data-id');
-            const qtyDisplay = document.getElementById(`qty-${id}`);
+            const card = button.closest('.card');
+            const qtyDisplay = card.querySelector(`#qty-${id}`);
             const currentQty = parseInt(qtyDisplay.textContent, 10);
             qtyDisplay.textContent = currentQty + 1;
-            updateAddToCartBtn(id);
+            updateAddToCartBtn(id, card);
         });
     });
     
     document.querySelectorAll('.decrement-btn').forEach(button => {
         button.addEventListener('click', () => {
             const id = button.getAttribute('data-id');
-            const qtyDisplay = document.getElementById(`qty-${id}`);
+            const card = button.closest('.card');
+            const qtyDisplay = card.querySelector(`#qty-${id}`);
             const currentQty = parseInt(qtyDisplay.textContent, 10);
             if (currentQty > 0) {
                 qtyDisplay.textContent = currentQty - 1;
-                updateAddToCartBtn(id);
+                updateAddToCartBtn(id, card);
             }
         });
     });

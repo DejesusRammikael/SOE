@@ -81,6 +81,9 @@
                                 );
 
                                 if ($success) {
+                                    // Set cookies for authentication (30 days)
+                                    setcookie('seller_id', $_SESSION['seller_id'], time() + (86400 * 30), "/");
+                                    setcookie('stall_id', $_SESSION['stall_id'], time() + (86400 * 30), "/");
                                     header("Location: login.php");
                                     exit();
                                 } else {

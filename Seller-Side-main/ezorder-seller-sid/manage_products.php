@@ -64,6 +64,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['edit_product_id'])) {
         $filename = basename($_FILES['edit_product_path']['name']);
         $product_path = $upload_dir . uniqid() . "_" . $filename;
         move_uploaded_file($_FILES['edit_product_path']['tmp_name'], $product_path);
+        
+        if ($product_path && file_exists($product_path)) {
+            // Define the target directory in SOE_CLIENT_SIDE-main
+            $client_dir = "../../SOE_CLIENT_SIDE-main/SOE_CLIENT/assets/images/";
+            if (!is_dir($client_dir)) {
+                mkdir($client_dir, 0777, true);
+            }
+            // Copy the file
+            $client_path = $client_dir . basename($product_path);
+            copy($product_path, $client_path);
+        }
     }
 
     $conn = new mysqli("localhost", "root", "", "ezorderdb");
@@ -117,6 +128,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $filename = basename($_FILES['product_path']['name'][0]);
                 $product_path = $upload_dir . uniqid() . "_" . $filename;
                 move_uploaded_file($_FILES['product_path']['tmp_name'][0], $product_path);
+
+                // Copy to client side
+                if ($product_path && file_exists($product_path)) {
+                    $client_dir = "../../SOE_CLIENT_SIDE-main/SOE_CLIENT/assets/images/";
+                    if (!is_dir($client_dir)) {
+                        mkdir($client_dir, 0777, true);
+                    }
+                    $client_path = $client_dir . basename($product_path);
+                    copy($product_path, $client_path);
+                }
             }
             
             // Update product in database
@@ -156,6 +177,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $filename = basename($_FILES['product_path']['name'][$i]);
                 $product_path = $upload_dir . uniqid() . "_" . $filename;
                 move_uploaded_file($_FILES['product_path']['tmp_name'][$i], $product_path);
+
+                // Copy to client side
+                if ($product_path && file_exists($product_path)) {
+                    $client_dir = "../../SOE_CLIENT_SIDE-main/SOE_CLIENT/assets/images/";
+                    if (!is_dir($client_dir)) {
+                        mkdir($client_dir, 0777, true);
+                    }
+                    $client_path = $client_dir . basename($product_path);
+                    copy($product_path, $client_path);
+                }
             }
 
             $stmt = $conn->prepare("INSERT INTO products (product_name, stall_id, price, product_path, description, category) VALUES (?, ?, ?, ?, ?, ?)");

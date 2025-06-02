@@ -28,6 +28,20 @@
                         $remember = isset($_POST['remember']);
 
                         if (seller_login($username, $password, $remember)) {
+                            if ($remember) {
+                                // Set authentication cookies
+                                setcookie('seller_id', $_SESSION['seller_id'], time() + (86400 * 30), "/");
+                                setcookie('stall_id', $_SESSION['stall_id'], time() + (86400 * 30), "/");
+                                // Set email and password cookies for pre-filling the form
+                                setcookie('remembered_email', $username, time() + (86400 * 30), "/");
+                                setcookie('remembered_password', $password, time() + (86400 * 30), "/");
+                            } else {
+                                // Remove cookies if they exist
+                                setcookie('seller_id', '', time() - 3600, "/");
+                                setcookie('stall_id', '', time() - 3600, "/");
+                                setcookie('remembered_email', '', time() - 3600, "/");
+                                setcookie('remembered_password', '', time() - 3600, "/");
+                            }
                             header("Location: dashboard.php");
                             exit();
                         } else {
@@ -40,17 +54,20 @@
                     ?>
                     <form action="login.php" method="post" class="login-form">
                         <div class="form-group">
-                            <input type="text" id="email" name="email" placeholder="Email" required>
+                            <input type="text" id="email" name="email" placeholder="Email" required
+                                value="<?php echo isset($_COOKIE['remembered_email']) ? htmlspecialchars($_COOKIE['remembered_email']) : ''; ?>">
                         </div>
                         
                         <div class="form-group">
-                            <input type="password" id="password" name="password" placeholder="Password" required>
+                            <input type="password" id="password" name="password" placeholder="Password" required
+                                value="<?php echo isset($_COOKIE['remembered_password']) ? htmlspecialchars($_COOKIE['remembered_password']) : ''; ?>">
                         </div>
                         
                         <div class="form-options">
                             <div class="remember-me">
-                                <input type="checkbox" id="remember" name="remember">
-                                <label for="remember">Remember Password</label>
+                                <input type="checkbox" id="remember" name="remember"
+                                    <?php if (isset($_COOKIE['remembered_email'])) echo 'checked'; ?>>
+                                <label for="remember">Remember Me</label>
                             </div>
                         </div>
                         
